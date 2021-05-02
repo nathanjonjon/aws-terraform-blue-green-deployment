@@ -1,7 +1,7 @@
 # Blue/Green Deployment
 ## DevOps, AWS, Terraform, CI/CD, IaC
 ### AWS CodePipeline, AWS CodeBuild
-![](https://github.com/nathanjonjon/aws-terraform-blue-green/blob/master/architecture.png)
+![](https://github.com/nathanjonjon/aws-terraform-blue-green/blob/main/architecture.png)
 CI/CD pipeline that consists four parts:
 1. Source
     Listen to changes of given branch
