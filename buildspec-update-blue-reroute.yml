@@ -1,0 +1,65 @@
+version: 0.2
+env:
+  variables:
+  ## pass environment variables in buildspec
+    ENV: production
+    ECR_REPO: $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME
+    IMAGE_NAME: $IMAGE_REPO_NAME
+    TF_VERSION: "0.14.5"
+    ALB_LISTENER_ARN: $ALB_LISTENER_ARN
+    GREEN_TG_ARN: $GREEN_TG_ARN
+    BLUE_TG_ARN: $BLUE_TG_ARN
+phases:
+  install:
+    runtime-versions:
+      docker: 19
+    commands:
+    ## install terraform
+      - "cd /usr/bin"
+      - "curl -s -qL -o terraform.zip https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
+      - "unzip -o terraform.zip"
+  pre_build:
+    commands:
+      - terraform version
+      - cd ${CODEBUILD_SRC_DIR_prodTerraformState}/prod
+      - terraform init
+  build:
+    commands:
+      - echo "start import existing blue asg and launch config"
+      - terraform import module.blue.aws_launch_configuration.as_conf "meanwhile-web-launch_config"
+      - terraform import module.blue.aws_autoscaling_group.asg "meanwhile-web-asg"
+      - echo "destroy and re-build blue infra"
+      - terraform destroy -target=module.blue.aws_autoscaling_group.asg -auto-approve
+      - terraform destroy -target=module.blue.aws_launch_configuration.as_conf -auto-approve
+      - terraform apply -target=module.blue -auto-approve
+      - ./check_tg_status.sh ${BLUE_TG_ARN}
+      - |
+        if [ $? != 0 ]; then
+          echo "blue targets unhealthy"
+          exit 1
+        fi
+      - echo "start route traffic to new blue target group"
+      - terraform apply -target=aws_lb_listener.app -var 'traffic_distribution=green-90' -auto-approve
+      - echo "blue:green = 10:90"
+      - terraform apply -target=aws_lb_listener.app -var 'traffic_distribution=split' -auto-approve
+      - echo "blue:green = 50:50"
+      - terraform apply -target=aws_lb_listener.app -auto-approve
+      - echo "100% traffic forwarding to new blue targets"
+      - echo "start destroy green infra"
+      - terraform destroy -target=module.green -auto-approve
+      - echo "green infra destroyed completely"
+  post_build:
+    commands:
+      - cd ..
+      ## nofify the users with slackbot
+      - |
+        if [[ "$CODEBUILD_BUILD_SUCCEEDING" == "0" ]]; then
+          echo 'something wrong in build phase';
+          scripts/slack_msg.sh "something wrong with new blue infra"
+          exit 1;
+        fi
+      - scripts/slack_msg.sh "new blue infra created successfully, and the current traffic is routing to blue targets"
+artifacts:
+  files:
+    - '**/*'
+  base-directory: '.'

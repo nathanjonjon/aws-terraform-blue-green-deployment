@@ -1,0 +1,35 @@
+version: 0.2
+env:
+  variables:
+  ## pass environment variables in buildspec
+    ENV: production
+    ECR_REPO: $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME
+    IMAGE_NAME: $IMAGE_REPO_NAME
+phases:
+  install:
+    runtime-versions:
+      python: 3.7
+      docker: 19
+  pre_build:
+    commands:
+      - python test.py
+      - echo "unit test done"
+      - aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin ${ECR_REPO}
+      - echo "Log into ECR"
+  build:
+    commands:
+      - docker build --tag ${IMAGE_NAME} . --file $DOCKERFILE_PATH
+      - echo "Build a Docker image"
+  post_build:
+    commands:
+    # nofify the users with slackbot
+      - |
+        if [[ "$CODEBUILD_BUILD_SUCCEEDING" == "0" ]]; then
+          echo 'docker build failed';
+          scripts/slack_msg.sh "docker build failed"
+          exit 1;
+        fi
+      - docker tag ${IMAGE_NAME} ${ECR_REPO}:stage
+      - docker push ${ECR_REPO}:stage
+      - echo "push to ECR"
+      

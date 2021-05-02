@@ -1,0 +1,50 @@
+version: 0.2
+env:
+  variables:
+    ENV: production
+    ECR_REPO: $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME
+    IMAGE_NAME: $IMAGE_REPO_NAME
+    TF_VERSION: "0.14.5"
+phases:
+  install:
+    runtime-versions:
+      python: 3.7
+      docker: 19
+    commands:
+    ## install terraform
+      - "cd /usr/bin"
+      - "curl -s -qL -o terraform.zip https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
+      - "unzip -o terraform.zip"
+      - ls ${CODEBUILD_SRC_DIR_stageTerraformState}
+  pre_build:
+    commands:
+      - aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin ${ECR_REPO}
+      - echo "Log into ECR"
+      - terraform version
+      - echo "pre_build"
+      - cd ${CODEBUILD_SRC_DIR_stageTerraformState}/stage
+      - terraform init
+      - terraform destroy -auto-approve
+      - echo "destroy staging instance"
+  build:
+    commands:
+    # retag the docker image from stage to latest
+      - MANIFEST=$(aws ecr batch-get-image --repository-name ${IMAGE_NAME} --image-ids imageTag=stage --query 'images[].imageManifest' --output text)
+      - aws ecr put-image --repository-name ${IMAGE_NAME} --image-tag latest --image-manifest "$MANIFEST"
+      - aws ecr batch-delete-image --repository-name ${IMAGE_NAME} --image-ids imageTag=stage
+      - echo "retag ${IMAGE_NAME}:test as ${IMAGE_NAME}:latest"
+  post_build:
+    commands:
+      - cd ../..
+      # nofify the users with slackbot
+      - |
+        if [[ "$CODEBUILD_BUILD_SUCCEEDING" == "0" ]]; then
+          echo 'docker build fails';
+          scripts/send_failure.sh
+          exit 1;
+        fi
+      - echo "done, please check ECR"
+artifacts:
+  files:
+    - '**/*'
+  base-directory: '.'

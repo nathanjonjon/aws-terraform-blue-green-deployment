@@ -1,0 +1,1 @@
+curl -X POST -H "Content-Type: application/json" -d "{\"channel\": \"#eng-alerts-testing\", \"username\": \"webhookbot\", \"text\": \"Friendly reminder :\n$1\", \"icon_emoji\": \":blob_hero:\"}" $SLACK_URL
