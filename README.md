@@ -2,7 +2,7 @@
 ## DevOps, AWS, Terraform, CI/CD, IaC
 ### AWS CodePipeline, AWS CodeBuild
 ![](https://github.com/nathanjonjon/aws-terraform-blue-green/blob/main/architecture.png)
-CI/CD pipeline that consists four parts:
+CI/CD pipeline that consists of four parts:
 1. Source
     Listen to changes of given branch
 2. Build
