@@ -1,6 +1,6 @@
 # Blue/Green Deployment
 
-This is a DevOps project based on `aws` and `terraform` that f staging on demand and blue-green deployment upon change in master branch of a Github repository
+This is a DevOps project based on `aws` and `terraform` that automates staging on demand and blue-green deployment upon change in master branch of a Github repository
 
 ## Project Structure
 
